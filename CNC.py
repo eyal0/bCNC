@@ -1670,9 +1670,9 @@ class CNC:
 			lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 			lines.append("g53 g0 z[toolprobez]")
 
-                        PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
-                        CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-                                                     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
+			PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
+			CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
+						     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 
 			# fixed WCS
 			lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")

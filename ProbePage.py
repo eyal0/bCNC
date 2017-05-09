@@ -1605,7 +1605,7 @@ class ToolFrame(CNCRibbon.PageFrame):
 		lines = []
 		PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
 		CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-                                             PRB_REVERSE[CNC.vars["prbcmd"][-1]])
+					     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 		lines.append("g53 g0 z[toolchangez]")
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
 		lines.append("$h")
