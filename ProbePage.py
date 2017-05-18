@@ -1608,7 +1608,7 @@ class ToolFrame(CNCRibbon.PageFrame):
 					     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 		lines.append("g53 g0 z[toolchangez]")
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
-		lines.append("$h")
+		#lines.append("$h")
 		lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 		lines.append("g53 g0 z[toolprobez]")
 		lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")

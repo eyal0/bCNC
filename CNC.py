@@ -1666,7 +1666,7 @@ class CNC:
 		lines.append("m0")	# feed hold
 
 		if CNC.toolPolicy < 4:
-			lines.append("$h")
+			#lines.append("$h")
 			lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 			lines.append("g53 g0 z[toolprobez]")
 
