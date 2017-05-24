@@ -206,7 +206,7 @@ class ProbeCommonFrame(CNCRibbon.PageFrame):
 		col += 1
 		ProbeCommonFrame.fastProbeFeed = tkExtra.FloatEntry(frame, background="White", width=5)
 		ProbeCommonFrame.fastProbeFeed.grid(row=row, column=col, sticky=EW)
-		tkExtra.Balloon.set(ProbeCommonFrame.fastProbeFeed, _("Set start probe feed rate for tool hange and calibration"))
+		tkExtra.Balloon.set(ProbeCommonFrame.fastProbeFeed, _("Set initial probe feed rate for tool change and calibration"))
 		self.addWidget(ProbeCommonFrame.fastProbeFeed)
 
 		# ----
@@ -1619,16 +1619,16 @@ class ToolFrame(CNCRibbon.PageFrame):
 		self.set()
 		if self.check4Errors(): return
 		lines = []
-		PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
-		CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-					     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 		lines.append("g53 g0 z[toolchangez]")
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
-
 		lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 		lines.append("g53 g0 z[toolprobez]")
-		lines.append("g91 [prbcmd] f[fastprbfeed] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed] z[tooldistance]")
+		if ProbeCommonFrame.fastProbeFeed.get():
+			prb_reverse = {"2": "4", "3": "5", "4": "2", "5": "3"}
+			CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
+						     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
+			lines.append("g91 [prbcmd] f[fastprbfeed] z[-tooldistance]")
+			lines.append("g91 [prbcmdreverse] f[fastprbfeed] z[tooldistance]")
 		lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")
 		lines.append("g4 p1")	# wait a sec
 		lines.append("%wait")
