@@ -1,4 +1,3 @@
-# -*- coding: ascii -*-
 # $Id$
 #
 # Author: vvlachoudis@gmail.com
@@ -1604,11 +1603,27 @@ class ToolFrame(CNCRibbon.PageFrame):
 		self.set()
 		if self.check4Errors(): return
 		lines = []
+		PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
+		CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
+					     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 		lines.append("g53 g0 z[toolchangez]")
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
+		#lines.append("$h")
 		lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 		lines.append("g53 g0 z[toolprobez]")
 		lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/10] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed/10] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/100] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed/100] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/1000] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed/1000] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/10000] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed/10000] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/100000] z[-tooldistance]")
+		lines.append("g91 [prbcmdreverse] f[prbfeed/100000] z[tooldistance]")
+		lines.append("g91 [prbcmd] f[prbfeed/1000000] z[-tooldistance]")
 		lines.append("g4 p1")	# wait a sec
 		lines.append("%wait")
 		lines.append("%global toolheight; toolheight=wz")
