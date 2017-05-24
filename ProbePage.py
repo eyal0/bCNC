@@ -200,6 +200,19 @@ class ProbeCommonFrame(CNCRibbon.PageFrame):
 		row = 0
 		col = 0
 
+		# ----
+		# Fast Probe Feed
+		Label(frame, text=_("Fast Probe Feed:")).grid(row=row, column=col, sticky=E)
+		col += 1
+		ProbeCommonFrame.fastProbeFeed = tkExtra.FloatEntry(frame, background="White", width=5)
+		ProbeCommonFrame.fastProbeFeed.grid(row=row, column=col, sticky=EW)
+		tkExtra.Balloon.set(ProbeCommonFrame.fastProbeFeed, _("Set initial probe feed rate for tool change and calibration"))
+		self.addWidget(ProbeCommonFrame.fastProbeFeed)
+
+		# ----
+		# Probe Feed
+		row += 1
+		col  = 0
 		Label(frame, text=_("Probe Feed:")).grid(row=row, column=col, sticky=E)
 		col += 1
 		ProbeCommonFrame.probeFeed = tkExtra.FloatEntry(frame, background="White", width=5)
@@ -256,6 +269,7 @@ class ProbeCommonFrame(CNCRibbon.PageFrame):
 	@staticmethod
 	def probeUpdate():
 		try:
+			CNC.vars["fastprbfeed"] = float(ProbeCommonFrame.fastProbeFeed.get())
 			CNC.vars["prbfeed"] = float(ProbeCommonFrame.probeFeed.get())
 			CNC.vars["prbcmd"]  = str(ProbeCommonFrame.probeCmd.get().split()[0])
 			return False
@@ -275,12 +289,14 @@ class ProbeCommonFrame(CNCRibbon.PageFrame):
 
 	#-----------------------------------------------------------------------
 	def saveConfig(self):
+		Utils.setFloat("Probe", "fastfeed", ProbeCommonFrame.fastProbeFeed.get())
 		Utils.setFloat("Probe", "feed", ProbeCommonFrame.probeFeed.get())
 		Utils.setFloat("Probe", "tlo",  ProbeCommonFrame.tlo.get())
 		Utils.setFloat("Probe", "cmd",  ProbeCommonFrame.probeCmd.get().split()[0])
 
 	#-----------------------------------------------------------------------
 	def loadConfig(self):
+		ProbeCommonFrame.fastProbeFeed.set(Utils.getFloat("Probe","fastfeed"))
 		ProbeCommonFrame.probeFeed.set(Utils.getFloat("Probe","feed"))
 		ProbeCommonFrame.tlo.set(      Utils.getFloat("Probe","tlo"))
 		cmd = Utils.getStr("Probe","cmd")
@@ -1603,27 +1619,20 @@ class ToolFrame(CNCRibbon.PageFrame):
 		self.set()
 		if self.check4Errors(): return
 		lines = []
-		PRB_REVERSE = {"2": "4", "3": "5", "4": "2", "5": "3"}
-		CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-					     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
 		lines.append("g53 g0 z[toolchangez]")
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
-		#lines.append("$h")
 		lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 		lines.append("g53 g0 z[toolprobez]")
+		if CNC.vars["fastprbfeed"]:
+			prb_reverse = {"2": "4", "3": "5", "4": "2", "5": "3"}
+			CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
+						     prb_reverse[CNC.vars["prbcmd"][-1]])
+			currentFeedrate = CNC.vars["fastprbfeed"]
+			while currentFeedrate > CNC.vars["prbfeed"]:
+				lines.append("g91 [prbcmd] f%f z[-tooldistance]" % currentFeedrate)
+				lines.append("g91 [prbcmdreverse] f%f z[tooldistance]" % currentFeedrate)
+				currentFeedrate /= 10
 		lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/10] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed/10] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/100] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed/100] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/1000] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed/1000] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/10000] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed/10000] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/100000] z[-tooldistance]")
-		lines.append("g91 [prbcmdreverse] f[prbfeed/100000] z[tooldistance]")
-		lines.append("g91 [prbcmd] f[prbfeed/1000000] z[-tooldistance]")
 		lines.append("g4 p1")	# wait a sec
 		lines.append("%wait")
 		lines.append("%global toolheight; toolheight=wz")
