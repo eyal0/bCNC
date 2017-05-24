@@ -1673,7 +1673,7 @@ class CNC:
 			if ProbeCommonFrame.fastProbeFeed.get():
 				prb_reverse = {"2": "4", "3": "5", "4": "2", "5": "3"}
 				CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-							     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
+							     prb_reverse[CNC.vars["prbcmd"][-1]])
 				lines.append("g91 [prbcmd] f[fastprbfeed] z[-tooldistance]")
 				lines.append("g91 [prbcmdreverse] f[fastprbfeed] z[tooldistance]")
 			lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")

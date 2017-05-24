@@ -1623,12 +1623,15 @@ class ToolFrame(CNCRibbon.PageFrame):
 		lines.append("g53 g0 x[toolchangex] y[toolchangey]")
 		lines.append("g53 g0 x[toolprobex] y[toolprobey]")
 		lines.append("g53 g0 z[toolprobez]")
-		if ProbeCommonFrame.fastProbeFeed.get():
+		if CNC.vars["fastprbfeed"]:
 			prb_reverse = {"2": "4", "3": "5", "4": "2", "5": "3"}
 			CNC.vars["prbcmdreverse"] = (CNC.vars["prbcmd"][:-1] +
-						     PRB_REVERSE[CNC.vars["prbcmd"][-1]])
-			lines.append("g91 [prbcmd] f[fastprbfeed] z[-tooldistance]")
-			lines.append("g91 [prbcmdreverse] f[fastprbfeed] z[tooldistance]")
+						     prb_reverse[CNC.vars["prbcmd"][-1]])
+			currentFeedrate = CNC.vars["fastprbfeed"]
+			while currentFeedrate > CNC.vars["prbfeed"]:
+				lines.append("g91 [prbcmd] f%f z[-tooldistance]" % currentFeedrate)
+				lines.append("g91 [prbcmdreverse] f%f z[tooldistance]" % currentFeedrate)
+				currentFeedrate /= 10
 		lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")
 		lines.append("g4 p1")	# wait a sec
 		lines.append("%wait")
