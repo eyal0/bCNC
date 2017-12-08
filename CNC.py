@@ -52,7 +52,7 @@ FEED_MODE     = { "G93" : "1/Time",
 UNITS         = { "G20" : "inch",
 		  "G21" : "mm" }
 PLANE         = { "G17" : "XY",
-		  "G18" : "ZX",
+		  "G18" : "XZ",
 		  "G19" : "YZ" }
 
 # Modal Mode from $G and variable set
@@ -634,6 +634,7 @@ class Orient:
 class CNC:
 	inch           = False
 	lasercutter    = False
+	laseradaptive  = False
 	acceleration_x = 25.0	# mm/s^2
 	acceleration_y = 25.0	# mm/s^2
 	acceleration_z = 25.0	# mm/s^2
@@ -643,7 +644,7 @@ class CNC:
 	travel_x       = 300
 	travel_y       = 300
 	travel_z       = 60
-	accuracy       = 0.02	# sagitta error during arc conversion
+	accuracy       = 0.01	# sagitta error during arc conversion
 	digits         = 4
 	startup        = "G90"
 	stdexpr        = False	# standard way of defining expressions with []
@@ -769,6 +770,8 @@ class CNC:
 		except: pass
 		try: CNC.lasercutter    = bool(int(config.get(section, "lasercutter")))
 		except: pass
+		try: CNC.laseradaptive  = bool(int(config.get(section, "laseradaptive")))
+		except: pass
 		try: CNC.doublesizeicon = bool(int(config.get(section, "doublesizeicon")))
 		except: pass
 		try: CNC.acceleration_x = float(config.get(section, "acceleration_x"))
@@ -814,6 +817,10 @@ class CNC:
 			CNC.travel_z        /= 25.4
 
 		section = "Error"
+		if CNC.drillPolicy == 1:
+			ERROR_HANDLING["G98"] = 1
+			ERROR_HANDLING["G99"] = 1
+
 		for cmd,value in config.items(section):
 			try:
 				ERROR_HANDLING[cmd.upper()] = int(value)
@@ -828,15 +835,15 @@ class CNC:
 	#----------------------------------------------------------------------
 	def initPath(self, x=None, y=None, z=None):
 		if x is None:
-			self.x = self.xval = 0
+			self.x = self.xval = CNC.vars['wx'] or 0
 		else:
 			self.x = self.xval = x
 		if y is None:
-			self.y = self.yval = 0
+			self.y = self.yval = CNC.vars['wy'] or 0
 		else:
 			self.y = self.yval = y
 		if z is None:
-			self.z = self.zval = 0
+			self.z = self.zval = CNC.vars['wz'] or 0
 		else:
 			self.z = self.zval = z
 		self.ival = self.jval = self.kval = 0.0
@@ -966,7 +973,10 @@ class CNC:
 	@staticmethod
 	def zenter(z):
 		if CNC.lasercutter:
-			return "m3"
+			if CNC.laseradaptive:
+				return "m4"
+			else:
+				return "m3"
 		else:
 			return "g1 %s %s"%(CNC.fmt("z",z), CNC.fmt("f",CNC.vars["cutfeedz"]))
 
@@ -1676,8 +1686,10 @@ class CNC:
 							     prb_reverse[CNC.vars["prbcmd"][-1]])
 				currentFeedrate = CNC.vars["fastprbfeed"]
 				while currentFeedrate > CNC.vars["prbfeed"]:
-					lines.append("g91 [prbcmd] f%f z[-tooldistance]" % currentFeedrate)
-					lines.append("g91 [prbcmdreverse] f%f z[tooldistance]" % currentFeedrate)
+					lines.append("g91 [prbcmd] %s z[-tooldistance]" \
+							% CNC.fmt('f',currentFeedrate))
+					lines.append("[prbcmdreverse] %s z[tooldistance+wz-mz]" \
+							% CNC.fmt('f',currentFeedrate))
 					currentFeedrate /= 10
 			lines.append("g91 [prbcmd] f[prbfeed] z[-tooldistance]")
 
@@ -1685,7 +1697,7 @@ class CNC:
 				# Adjust the current WCS to fit to the tool
 				# FIXME could be done dynamically in the code
 				p = WCS.index(CNC.vars["WCS"])+1
-				lines.append("G10L20P%d z[toolheight]"%(p))
+				lines.append("g10l20p%d z[toolheight]"%(p))
 				lines.append("%wait")
 
 			elif CNC.toolPolicy==3:
@@ -1779,7 +1791,7 @@ class CNC:
 				zstep -= peck
 
 				# Drill to z
-				lines.append(CNC.gline(z=z/self.unit,f=self.feed))
+				lines.append(CNC.gline(z=z/self.unit,f=self.feed/self.unit))
 
 			# 82=dwell, 86=boring-stop, 89=boring-dwell
 			if self.gcode in (82,86,89):
@@ -1791,7 +1803,7 @@ class CNC:
 			# Move to original position
 			if self.gcode in (85,89):	# boring cycle
 				z = retract
-				lines.append(CNC.gline(z=z/self.unit,f=self.feed))
+				lines.append(CNC.gline(z=z/self.unit,f=self.feed/self.unit))
 
 			z = clearz
 			lines.append(CNC.grapid(z=z/self.unit))
@@ -2671,14 +2683,9 @@ class GCode:
 		self.undoredo.redo()
 
 	#----------------------------------------------------------------------
-	def addUndo(self, undoinfo, msg=""):
-		if isinstance(undoinfo,list):
-			if len(undoinfo)==1:
-				self.undoredo.addUndo(undoinfo[0])
-			else:
-				self.undoredo.addUndo(undo.createListUndo(undoinfo,msg))
-		elif undoinfo is not undo.NullUndo:
-			self.undoredo.addUndo(undoinfo)
+	def addUndo(self, undoinfo, msg=None):
+		if not undoinfo: return
+		self.undoredo.add(undoinfo, msg)
 		self._modified = True
 
 	#----------------------------------------------------------------------
@@ -2771,10 +2778,11 @@ class GCode:
 	#----------------------------------------------------------------------
 	def addBlockUndo(self, bid, block):
 		if bid is None: bid = len(self.blocks)
-		undoinfo = (self.delBlockUndo, bid)
 		if bid>=len(self.blocks):
+			undoinfo = (self.delBlockUndo, len(self.blocks))
 			self.blocks.append(block)
 		else:
+			undoinfo = (self.delBlockUndo, bid)
 			self.blocks.insert(bid, block)
 		return undoinfo
 
@@ -2859,7 +2867,7 @@ class GCode:
 	# Move block from location src to location dst
 	#----------------------------------------------------------------------
 	def moveBlockUndo(self, src, dst):
-		if src == dst: return undo.NullUndo
+		if src == dst: return None
 		undoinfo = (self.moveBlockUndo, dst, src)
 		if dst > src:
 			self.blocks.insert(dst-1, self.blocks.pop(src))
@@ -2884,7 +2892,7 @@ class GCode:
 	# Move block upwards
 	#----------------------------------------------------------------------
 	def orderUpBlockUndo(self, bid):
-		if bid==0: return undo.NullUndo
+		if bid==0: return None
 		undoinfo = (self.orderDownBlockUndo, bid-1)
 		# swap with the block above
 		before      = self.blocks[bid-1]
@@ -2896,7 +2904,7 @@ class GCode:
 	# Move block downwards
 	#----------------------------------------------------------------------
 	def orderDownBlockUndo(self, bid):
-		if bid>=len(self.blocks)-1: return undo.NullUndo
+		if bid>=len(self.blocks)-1: return None
 		undoinfo = (self.orderUpBlockUndo, bid+1)
 		# swap with the block below
 		after       = self[bid+1]
@@ -2954,7 +2962,7 @@ class GCode:
 	# Move line upwards
 	#----------------------------------------------------------------------
 	def orderUpLineUndo(self, bid, lid):
-		if lid==0: return undo.NullUndo
+		if lid==0: return None
 		block = self.blocks[bid]
 		undoinfo = (self.orderDownLineUndo, bid, lid-1)
 		block.insert(lid-1, block.pop(lid))
@@ -2965,7 +2973,7 @@ class GCode:
 	#----------------------------------------------------------------------
 	def orderDownLineUndo(self, bid, lid):
 		block = self.blocks[bid]
-		if lid>=len(block)-1: return undo.NullUndo
+		if lid>=len(block)-1: return None
 		undoinfo = (self.orderUpLineUndo, bid, lid+1)
 		block.insert(lid+1, block.pop(lid))
 		return undoinfo
@@ -3150,7 +3158,7 @@ class GCode:
 		undoinfo = []
 		for bid,lid in items:
 			if isinstance(lid,int):
-				undoinfo.append(self.orderDownLineUndo(bid,lid))
+				undoinfo.append(self.orderUpLineUndo(bid,lid))
 				sel.append((bid, lid-1))
 			elif lid is None:
 				undoinfo.append(self.orderUpBlockUndo(bid))
@@ -3689,6 +3697,7 @@ class GCode:
 			elif isinstance(lid, int):
 				cmds = CNC.parseLine(block[lid])
 				if cmds is None: continue
+				self.cnc.motionStart(cmds)
 
 				# Collect all values
 				new.clear()
@@ -3712,17 +3721,18 @@ class GCode:
 						else:
 							newcmd.append(self.fmt(cmd[0],new[c]))
 					# Append motion commands if not exist and changed
-					if 'I' in new or 'J' in new:
-						check = "XYZIJK"
-					else:
-						check = "XYZ"
+					check = "XYZ"
+					if 'I' in new or 'J' in new or 'K' in new:
+						check += "IJK"
 					for c in check:
+						#if c in new:
 						try:
-							if c not in present and new[c] != old[c]:
+							if c not in present and new.get(c) != old.get(c):
 								newcmd.append(self.fmt(c,new[c]))
-						except KeyError:
+						except:
 							pass
 					undoinfo.append(self.setLineUndo(bid,lid," ".join(newcmd)))
+				self.cnc.motionEnd()
 
 		# FIXME I should add it later, check all functions using it
 		self.addUndo(undoinfo)
@@ -3762,6 +3772,8 @@ class GCode:
 	# Rotate position by c(osine), s(ine) of an angle around center (x0,y0)
 	#----------------------------------------------------------------------
 	def rotateFunc(self, new, old, c, s, x0, y0):
+		if self.cnc.plane == YZ:
+			import pdb; pdb.set_trace()
 		if 'X' not in new and 'Y' not in new: return False
 		x = getValue('X',new,old)
 		y = getValue('Y',new,old)
@@ -3771,8 +3783,8 @@ class GCode:
 		if 'I' in new or 'J' in new:
 			i = getValue('I',new,old)
 			j = getValue('J',new,old)
-			new['I'] = c*i - s*j
-			new['J'] = s*i + c*j
+			if self.cnc.plane in (XY, XZ): new['I'] = c*i - s*j
+			if self.cnc.plane in (XY, YZ): new['J'] = s*i + c*j
 		return True
 
 	#----------------------------------------------------------------------
